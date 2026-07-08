@@ -20,8 +20,8 @@ time_array = np.linspace(0, 20, 1000)
 is_updating = False 
 
 ax_phasor.set_title("Diagrama de Fasores", fontsize=14)
-ax_phasor.set_xlim(-2.5, 2.5)
-ax_phasor.set_ylim(-2.5, 2.5)
+ax_phasor.set_xlim(-4, 4)
+ax_phasor.set_ylim(-4, 4)
 ax_phasor.set_aspect('equal')
 ax_phasor.grid(True, linestyle='--')
 ax_phasor.set_xlabel('Parte Real')
@@ -32,11 +32,10 @@ line2, = ax_phasor.plot([], [], 'r-', lw=2, label='Fasor 2')
 line_res, = ax_phasor.plot([], [], 'k-', lw=3, label='Resultante')
 
 dot1, = ax_phasor.plot([], [], 'bo')
-dot2, = ax_phasor.plot([], [], 'ro')
 dot_res, = ax_phasor.plot([], [], 'ko')
 
 info_box = ax_phasor.text(
-    -2.35, 2.35, '', 
+    -3.85, 3.85, '',
     fontsize=10, 
     verticalalignment='top', 
     bbox=dict(facecolor='white', edgecolor='gray', alpha=0.9, boxstyle='round,pad=0.5')
@@ -45,7 +44,7 @@ ax_phasor.legend(loc='lower right', fontsize=9)
 
 ax_wave.set_title("Gráfico de Ondas no Tempo (y(t))", fontsize=14)
 ax_wave.set_xlim(0, 20)
-ax_wave.set_ylim(-2.5, 2.5)
+ax_wave.set_ylim(-4, 4)
 ax_wave.set_xlabel("Tempo (s)")
 ax_wave.set_ylabel("Amplitude")
 ax_wave.grid(True, linestyle='--')
@@ -54,6 +53,21 @@ wave1_line, = ax_wave.plot([], [], 'b-', alpha=0.7, label='Onda 1')
 wave2_line, = ax_wave.plot([], [], 'r-', alpha=0.7, label='Onda 2')
 wave_res_line, = ax_wave.plot([], [], 'k-', lw=2.5, label='Resultante')
 ax_wave.legend(loc='upper right', fontsize=9)
+
+def recompute_curves():
+    y1 = state.A1 * np.cos(state.omega * time_array + state.phi1)
+    y2 = state.A2 * np.cos(state.omega * time_array + state.phi2)
+    y_res = y1 + y2
+    wave1_line.set_data(time_array, y1)
+    wave2_line.set_data(time_array, y2)
+    wave_res_line.set_data(time_array, y_res)
+    fig.canvas.draw_idle()
+
+recompute_curves()
+
+wave1_dot, = ax_wave.plot([], [], 'bo', ms=8)
+wave2_dot, = ax_wave.plot([], [], 'ro', ms=8)
+wave_res_dot, = ax_wave.plot([], [], 'ko', ms=8)
 
 texto_explicativo = (
     "O diagrama de fasores (esquerda) ilustra a soma vetorial de duas ondas no tempo em um único ponto espacial.\n"
@@ -82,7 +96,9 @@ def update_params(val):
     global is_updating
     state.A1, state.phi1 = s_A1.val, s_phi1.val
     state.A2, state.phi2 = s_A2.val, s_phi2.val
-    
+
+    recompute_curves()
+
     if not is_updating:
         is_updating = True
         scenarios.set_active(0)
@@ -114,9 +130,11 @@ def update_scenario(label):
         s_phi2.set_val(3*np.pi/4)
         
     is_updating = False
+    recompute_curves()
     fig.canvas.draw_idle()
 
 scenarios.on_clicked(update_scenario)
+
 
 def animate(frame):
     f1 = state.A1 * np.exp(1j * (state.omega * state.anim_time + state.phi1))
@@ -124,9 +142,9 @@ def animate(frame):
     f_res = f1 + f2
 
     line1.set_data([0, f1.real], [0, f1.imag])
-    line2.set_data([f1.real, f_res.real], [f1.imag, f_res.imag]) 
+    line2.set_data([f1.real, f_res.real], [f1.imag, f_res.imag])
     line_res.set_data([0, f_res.real], [0, f_res.imag])
-    
+
     dot1.set_data([f1.real], [f1.imag])
     dot_res.set_data([f_res.real], [f_res.imag])
 
@@ -137,17 +155,20 @@ def animate(frame):
     )
     info_box.set_text(texto_info)
 
-    y1 = state.A1 * np.cos(state.omega * time_array + state.phi1)
-    y2 = state.A2 * np.cos(state.omega * time_array + state.phi2)
-    y_res = y1 + y2
-    
-    wave1_line.set_data(time_array, y1)
-    wave2_line.set_data(time_array, y2)
-    wave_res_line.set_data(time_array, y_res)
-    
+    t_now = state.anim_time % 20
+    y1_now = state.A1 * np.cos(state.omega * t_now + state.phi1)
+    y2_now = state.A2 * np.cos(state.omega * t_now + state.phi2)
+    yres_now = y1_now + y2_now
+
+    wave1_dot.set_data([t_now], [y1_now])
+    wave2_dot.set_data([t_now], [y2_now])
+    wave_res_dot.set_data([t_now], [yres_now])
+
     state.anim_time += 0.02
-    
-    return line1, line2, line_res, dot1, dot_res, wave1_line, wave2_line, wave_res_line, info_box
+
+    return (line1, line2, line_res, dot1, dot_res,
+            wave1_line, wave2_line, wave_res_line,
+            wave1_dot, wave2_dot, wave_res_dot, info_box)
 
 ani = FuncAnimation(fig, animate, blit=True, interval=25, cache_frame_data=False)
 
