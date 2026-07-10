@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider, RadioButtons, Button
 
-
-
 fig, (ax_phasor, ax_wave) = plt.subplots(1, 2, figsize=(13, 8))
 plt.subplots_adjust(left=0.08, bottom=0.45, right=0.95, top=0.92, wspace=0.25)
 fig.suptitle("Simulador de Interferência de Ondas com Fasores", fontsize=18, fontweight='bold')
@@ -19,7 +17,6 @@ state = WaveState()
 time_array = np.linspace(0, 20, 1000)
 
 is_updating = False 
-
 is_paused = False
 
 INITIALS = {
@@ -99,7 +96,7 @@ texto_explicativo = (
     "Fases opostas causam interferência destrutiva. Frequências (w) diferentes causam batimentos (a resultante cresce e diminui no tempo)."
 )
 
-fig.text(0.5, 0.38, texto_explicativo, ha='center', va='center', fontsize=11, wrap=True, 
+fig.text(0.5, 0.41, texto_explicativo, ha='center', va='center', fontsize=11, wrap=True, 
          bbox=dict(boxstyle='round,pad=0.6', facecolor='wheat', edgecolor='tan', alpha=0.5))
 
 ax_A1 = plt.axes([0.10, 0.28, 0.25, 0.02], facecolor='lightcyan')
@@ -112,15 +109,15 @@ ax_w2 = plt.axes([0.45, 0.18, 0.25, 0.02], facecolor='mistyrose')
 
 s_A1 = Slider(ax_A1, 'A1 (m)', 0.0, 2.0, valinit=state.A1, valstep=0.01)
 s_phi1 = Slider(ax_phi1, 'phi1 (rad)', 0.0, 2*np.pi, valinit=state.phi1, valstep=0.01)
-s_w1 = Slider(ax_w1, 'w1 (rad/s)', 0.0, 3.0, valinit=state.w1, valstep=0.1)
+s_w1 = Slider(ax_w1, 'w1 (rad/s)', -3.0, 3.0, valinit=state.w1, valstep=0.1)
 
 s_A2 = Slider(ax_A2, 'A2 (m)', 0.0, 2.0, valinit=state.A2, valstep=0.01)
 s_phi2 = Slider(ax_phi2, 'phi2 (rad)', 0.0, 2*np.pi, valinit=state.phi2, valstep=0.01)
-s_w2 = Slider(ax_w2, 'w2 (rad/s)', 0.0, 3.0, valinit=state.w2, valstep=0.1)
+s_w2 = Slider(ax_w2, 'w2 (rad/s)', -3.0, 3.0, valinit=state.w2, valstep=0.1)
 
-ax_scenarios = plt.axes([0.78, 0.18, 0.20, 0.18], facecolor='whitesmoke')
-opcoes = ('Cenário Atual', 'Mesma Fase', 'Fases Opostas', 'Batimentos (w diff)', 'Variável')
-scenarios = RadioButtons(ax_scenarios, opcoes, active=4)
+ax_scenarios = plt.axes([0.78, 0.18, 0.24, 0.21], facecolor='whitesmoke')
+opcoes = ('Cenário Atual', 'Mesma Fase', 'Fases Opostas', 'Batimentos (w diff)', 'Ondas Estacionárias', 'Variável')
+scenarios = RadioButtons(ax_scenarios, opcoes, active=5)
 
 ax_pause = plt.axes([0.78, 0.12, 0.20, 0.04])
 btn_pause = Button(ax_pause, 'Pausar')
@@ -160,6 +157,9 @@ def update_scenario(label):
     elif label == 'Batimentos (w diff)':
         s_A1.set_val(1.5); s_phi1.set_val(0.0); s_w1.set_val(1.2)
         s_A2.set_val(1.5); s_phi2.set_val(0.0); s_w2.set_val(1.0)
+    elif label == 'Ondas Estacionárias':
+        s_A1.set_val(1.5); s_phi1.set_val(0.0); s_w1.set_val(1.5)
+        s_A2.set_val(1.5); s_phi2.set_val(0.0); s_w2.set_val(-1.5)
     elif label == 'Variável':
         s_A1.set_val(1.2); s_phi1.set_val(np.pi/4); s_w1.set_val(1.0)
         s_A2.set_val(0.8); s_phi2.set_val(3*np.pi/4); s_w2.set_val(1.0)
@@ -183,7 +183,6 @@ def toggle_pause(event):
 
 btn_pause.on_clicked(toggle_pause)
 
-
 def reset_simulation(event):
     global is_updating, is_paused
 
@@ -197,7 +196,7 @@ def reset_simulation(event):
     s_w2.set_val(INITIALS["w2"])
 
     state.anim_time = INITIALS["anim_time"]
-    scenarios.set_active(4)
+    scenarios.set_active(5)
 
     if is_paused:
         ani.resume()
@@ -209,7 +208,6 @@ def reset_simulation(event):
     fig.canvas.draw_idle()
 
 btn_reset.on_clicked(reset_simulation)
-
 
 def animate(frame):
     f1 = state.A1 * np.exp(1j * (state.w1 * state.anim_time + state.phi1))
@@ -239,12 +237,15 @@ def animate(frame):
     )
     info_box.set_text(texto_info)
     
-    phi_res = np.angle(f_res)
-
     if np.isclose(state.w1, state.w2, atol=1e-9):
         texto_resultado = (
             f"$y_{{res}}(t)$ mantém a mesma frequência angular, pois "
             f"$\\omega_1 = \\omega_2 = {state.w1:.1f}$ rad/s"
+        )
+    elif np.isclose(state.w1, -state.w2, atol=1e-9) and not np.isclose(state.w1, 0.0):
+        texto_resultado = (
+            f"$y_{{res}}(t)$ forma uma ONDA ESTACIONÁRIA. As frequências "
+            f"são opostas ($\\omega_1 = -\\omega_2$)."
         )
     else:
         texto_resultado = (
