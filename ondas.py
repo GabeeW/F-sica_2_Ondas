@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.widgets import Slider, RadioButtons
+from matplotlib.widgets import Slider, RadioButtons, Button
+
+
 
 fig, (ax_phasor, ax_wave) = plt.subplots(1, 2, figsize=(13, 8))
 plt.subplots_adjust(left=0.08, bottom=0.45, right=0.95, top=0.92, wspace=0.25)
@@ -18,6 +20,18 @@ time_array = np.linspace(0, 20, 1000)
 
 is_updating = False 
 
+is_paused = False
+
+INITIALS = {
+    "A1": 1.2,
+    "phi1": np.pi/4,
+    "w1": 1.0,
+    "A2": 0.8,
+    "phi2": 3*np.pi/4,
+    "w2": 1.0,
+    "anim_time": 0.0
+}
+
 ax_phasor.set_title("Diagrama de Fasores", fontsize=14)
 ax_phasor.set_xlim(-4, 4)
 ax_phasor.set_ylim(-4, 4)
@@ -29,15 +43,18 @@ ax_phasor.set_ylabel('Parte Imaginária')
 line1, = ax_phasor.plot([], [], 'b-', lw=2, label='Fasor 1')
 line2, = ax_phasor.plot([], [], 'r-', lw=2, label='Fasor 2')
 line_res, = ax_phasor.plot([], [], 'k-', lw=3, label='Resultante')
+line2_ref, = ax_phasor.plot([], [], 'r--', lw=1.5, alpha=0.5)
 
 dot1, = ax_phasor.plot([], [], 'bo')
 dot_res, = ax_phasor.plot([], [], 'ko')
+dot2, = ax_phasor.plot([], [], 'ro')
 
 info_box = ax_phasor.text(
-    -3.85, 3.85, '',
-    fontsize=10, 
-    verticalalignment='top', 
-    bbox=dict(facecolor='white', edgecolor='gray', alpha=0.9, boxstyle='round,pad=0.5')
+    -3.95, 3.9, '',
+    fontsize=8.5,
+    verticalalignment='top',
+    horizontalalignment='left',
+    bbox=dict(facecolor='white', edgecolor='gray', alpha=0.85, boxstyle='round,pad=0.35')
 )
 ax_phasor.legend(loc='lower right', fontsize=9)
 
@@ -105,6 +122,12 @@ ax_scenarios = plt.axes([0.78, 0.18, 0.20, 0.18], facecolor='whitesmoke')
 opcoes = ('Cenário Atual', 'Mesma Fase', 'Fases Opostas', 'Batimentos (w diff)', 'Variável')
 scenarios = RadioButtons(ax_scenarios, opcoes, active=4)
 
+ax_pause = plt.axes([0.78, 0.12, 0.20, 0.04])
+btn_pause = Button(ax_pause, 'Pausar')
+
+ax_reset = plt.axes([0.78, 0.07, 0.20, 0.04])
+btn_reset = Button(ax_reset, 'Reset')
+
 def update_params(val):
     global is_updating
     state.A1, state.phi1, state.w1 = s_A1.val, s_phi1.val, s_w1.val
@@ -147,6 +170,47 @@ def update_scenario(label):
 
 scenarios.on_clicked(update_scenario)
 
+def toggle_pause(event):
+    global is_paused
+    if is_paused:
+        ani.resume()
+        btn_pause.label.set_text('Pausar')
+    else:
+        ani.pause()
+        btn_pause.label.set_text('Retomar')
+    is_paused = not is_paused
+    fig.canvas.draw_idle()
+
+btn_pause.on_clicked(toggle_pause)
+
+
+def reset_simulation(event):
+    global is_updating, is_paused
+
+    is_updating = True
+
+    s_A1.set_val(INITIALS["A1"])
+    s_phi1.set_val(INITIALS["phi1"])
+    s_w1.set_val(INITIALS["w1"])
+    s_A2.set_val(INITIALS["A2"])
+    s_phi2.set_val(INITIALS["phi2"])
+    s_w2.set_val(INITIALS["w2"])
+
+    state.anim_time = INITIALS["anim_time"]
+    scenarios.set_active(4)
+
+    if is_paused:
+        ani.resume()
+        is_paused = False
+        btn_pause.label.set_text('Pausar')
+
+    is_updating = False
+    recompute_curves()
+    fig.canvas.draw_idle()
+
+btn_reset.on_clicked(reset_simulation)
+
+
 def animate(frame):
     f1 = state.A1 * np.exp(1j * (state.w1 * state.anim_time + state.phi1))
     f2 = state.A2 * np.exp(1j * (state.w2 * state.anim_time + state.phi2))
@@ -155,23 +219,44 @@ def animate(frame):
     line1.set_data([0, f1.real], [0, f1.imag])
     line2.set_data([f1.real, f_res.real], [f1.imag, f_res.imag])
     line_res.set_data([0, f_res.real], [0, f_res.imag])
+    line2_ref.set_data([0, f2.real], [0, f2.imag])
 
     dot1.set_data([f1.real], [f1.imag])
     dot_res.set_data([f_res.real], [f_res.imag])
+    dot2.set_data([f2.real], [f2.imag])
+
+    delta_phi = (state.phi2 - state.phi1) % (2*np.pi)
+    delta_phi_deg = np.degrees(delta_phi)
 
     texto_info = (
-        f"Fasor 1 (Azul):\n  A: {state.A1:.2f}m | phi: {state.phi1:.2f} rad | w: {state.w1:.1f}\n\n"
-        f"Fasor 2 (Vermelho):\n  A: {state.A2:.2f}m | phi: {state.phi2:.2f} rad | w: {state.w2:.1f}\n\n"
-        f"RESULTANTE (Preto):\n  Amp Inst.: {np.abs(f_res):.2f}m | Fase Inst.: {np.angle(f_res):.2f} rad"
+        f"Fasor 1 (Azul):\n"
+        f"  A: {state.A1:.2f} m | phi: {state.phi1:.2f} rad ({np.degrees(state.phi1):.1f}°) | w: {state.w1:.1f}\n"
+        f"Fasor 2 (Vermelho):\n"
+        f"  A: {state.A2:.2f} m | phi: {state.phi2:.2f} rad ({np.degrees(state.phi2):.1f}°) | w: {state.w2:.1f}\n"
+        f"RESULTANTE (Preto):\n"
+        f"  Amp Inst.: {np.abs(f_res):.2f} m | Fase Inst.: {np.angle(f_res):.2f} rad ({np.degrees(np.angle(f_res)):.1f}°)\n"
+        f"Δphi: {delta_phi:.2f} rad ({delta_phi_deg:.1f}°)"
     )
     info_box.set_text(texto_info)
     
     phi_res = np.angle(f_res)
+
+    if np.isclose(state.w1, state.w2, atol=1e-9):
+        texto_resultado = (
+            f"$y_{{res}}(t)$ mantém a mesma frequência angular, pois "
+            f"$\\omega_1 = \\omega_2 = {state.w1:.1f}$ rad/s"
+        )
+    else:
+        texto_resultado = (
+            f"$y_{{res}}(t)$ apresenta batimentos, pois "
+            f"$\\omega_1 \\neq \\omega_2$"
+        )
+
     texto_eq = (
         "Equações no Tempo:\n"
         f"$y_1(t) = {state.A1:.2f} \\cos({state.w1:.1f}t {'+' if state.phi1 >= 0 else '-'} {abs(state.phi1):.2f})$\n"
         f"$y_2(t) = {state.A2:.2f} \\cos({state.w2:.1f}t {'+' if state.phi2 >= 0 else '-'} {abs(state.phi2):.2f})$\n"
-        f"$y_{{res}}(t)$ varia no tempo"
+        f"{texto_resultado}"
     )
     eq_box.set_text(texto_eq)
 
@@ -186,9 +271,9 @@ def animate(frame):
 
     state.anim_time += 0.02
 
-    return (line1, line2, line_res, dot1, dot_res,
-            wave1_line, wave2_line, wave_res_line,
-            wave1_dot, wave2_dot, wave_res_dot, info_box, eq_box)
+    return (line1, line2, line2_ref, line_res, dot1, dot2, dot_res,
+        wave1_line, wave2_line, wave_res_line,
+        wave1_dot, wave2_dot, wave_res_dot, info_box, eq_box)
 
 ani = FuncAnimation(fig, animate, blit=True, interval=25, cache_frame_data=False)
 
