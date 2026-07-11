@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.widgets import Slider, RadioButtons, Button
+from matplotlib.widgets import Slider, RadioButtons, Button, TextBox
 
 fig, (ax_phasor, ax_time, ax_space) = plt.subplots(1, 3, figsize=(16, 8))
 plt.subplots_adjust(left=0.04, bottom=0.48, right=0.98, top=0.90, wspace=0.25)
@@ -14,7 +14,9 @@ class WaveState:
         self.anim_time = 0.0
 
 state = WaveState()
-t_array = np.linspace(0, 20, 1000)
+time_min = 0.0
+time_max = 20.0
+t_array = np.linspace(time_min, time_max, 1000)
 x_array = np.linspace(0, 20, 1000)
 
 is_updating = False 
@@ -115,6 +117,13 @@ btn_pause = Button(ax_pause, 'Pausar')
 ax_reset = plt.axes([0.89, 0.14, 0.08, 0.05])
 btn_reset = Button(ax_reset, 'Reset')
 
+ax_time_range = plt.axes([0.72, 0.34, 0.15, 0.05])
+time_range_box = TextBox(ax_time_range, 'Tempo [min,max]', initial='0,20')
+
+
+
+
+
 def update_plots():
     t_now = state.anim_time
     k = 1.0
@@ -140,7 +149,8 @@ def update_plots():
     time_line2.set_data(t_array, y2_time)
     time_res.set_data(t_array, yres_time)
 
-    t_dot_x = t_now % 20
+    t_span = time_max - time_min
+    t_dot_x = time_min + ((t_now - time_min) % t_span)
     time_dot1.set_data([t_dot_x], [state.A1 * np.cos(state.w1 * t_dot_x + state.phi1)])
     time_dot2.set_data([t_dot_x], [state.A2 * np.cos(state.w2 * t_dot_x + state.phi2)])
     time_dotres.set_data([t_dot_x], [state.A1 * np.cos(state.w1 * t_dot_x + state.phi1) + state.A2 * np.cos(state.w2 * t_dot_x + state.phi2)])
@@ -242,7 +252,7 @@ def toggle_pause(event):
 btn_pause.on_clicked(toggle_pause)
 
 def reset_simulation(event):
-    global is_updating, is_paused
+    global is_updating, is_paused, t_array, time_min, time_max
     is_updating = True
 
     s_A1.set_val(INITIALS["A1"])
@@ -254,6 +264,11 @@ def reset_simulation(event):
 
     state.anim_time = INITIALS["anim_time"]
     scenarios.set_active(5)
+    time_min = 0.0
+    time_max = 20.0
+    t_array = np.linspace(time_min, time_max, 1000)
+    ax_time.set_xlim(time_min, time_max)
+    time_range_box.set_val('0,20')
 
     if is_paused:
         ani.resume()
@@ -265,6 +280,35 @@ def reset_simulation(event):
     fig.canvas.draw_idle()
 
 btn_reset.on_clicked(reset_simulation)
+
+
+def update_time_range(text):
+    global t_array, time_min, time_max
+
+    try:
+        partes = text.split(',')
+        if len(partes) != 2:
+            return
+
+        novo_min = float(partes[0].strip())
+        novo_max = float(partes[1].strip())
+
+        if novo_max <= novo_min:
+            return
+
+        time_min = novo_min
+        time_max = novo_max
+        t_array = np.linspace(time_min, time_max, 1000)
+
+        ax_time.set_xlim(time_min, time_max)
+
+        update_plots()
+        fig.canvas.draw_idle()
+
+    except ValueError:
+        pass
+
+time_range_box.on_submit(update_time_range)
 
 def animate(frame):
     artists = update_plots()
